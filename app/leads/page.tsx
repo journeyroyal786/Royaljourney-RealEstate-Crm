@@ -1,0 +1,17 @@
+import Link from "next/link";
+import { Search } from "lucide-react";
+import { requireUser } from "@/lib/auth";
+export default async function Leads({ searchParams }: { searchParams: Promise<{ q?: string; status?: string; created?: string }> }) {
+  const params = await searchParams;
+  const { supabase } = await requireUser();
+  let query = supabase.from("leads").select("id,full_name,phone,email,property_interest,source,status,next_follow_up,created_at,assigned_profile:profiles!leads_assigned_to_fkey(full_name)").order("created_at",{ascending:false}).limit(200);
+  const searchTerm = (params.q || "").replace(/[(),.%_*\\\\]/g, " ").trim().slice(0, 80);
+  if (searchTerm) query = query.or(`full_name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+  if (params.status) query = query.eq("status",params.status);
+  const { data: leads, error } = await query;
+  return <div className="space-y-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-sm text-stone-500">Marketing & sales</p><h1 className="mt-1 text-3xl font-bold">Lead management</h1><p className="mt-2 text-sm text-stone-500">Capture, assign and track every enquiry.</p></div><div className="flex gap-2"><a className="btn btn-light" href="/api/leads/export">Export CSV</a><Link className="btn btn-primary" href="/leads/new">+ Add lead</Link></div></div>
+    {params.created && <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Lead created successfully.</p>}
+    <form className="panel flex flex-wrap gap-3 p-4"><div className="relative min-w-[220px] flex-1"><Search size={16} className="absolute left-3 top-3 text-stone-400"/><input className="field pl-9" name="q" defaultValue={params.q} placeholder="Search name, phone or email"/></div><select className="field w-auto min-w-40" name="status" defaultValue={params.status || ""}><option value="">All statuses</option>{["new","contacted","qualified","unqualified","viewing","negotiation","won","lost"].map(s=><option key={s} value={s}>{s}</option>)}</select><button className="btn btn-light">Filter</button></form>
+    <div className="panel overflow-hidden"><div className="overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500"><tr>{["Lead","Contact","Interest","Status","Follow-up","Assigned to"].map(x=><th className="px-5 py-4 font-semibold" key={x}>{x}</th>)}</tr></thead><tbody className="divide-y divide-stone-100">{error ? <tr><td colSpan={6} className="p-6 text-red-700">Could not load leads. Check the Supabase schema and access policies.</td></tr> : leads?.length ? leads.map((l:any)=><tr key={l.id} className="hover:bg-stone-50"><td className="px-5 py-4"><Link href={`/leads/${l.id}`} className="font-bold text-royal-900 hover:underline">{l.full_name}</Link><p className="mt-1 text-xs text-stone-400">{l.source}</p></td><td className="px-5 py-4">{l.phone}<p className="mt-1 text-xs text-stone-400">{l.email || "No email"}</p></td><td className="px-5 py-4">{l.property_interest || "—"}</td><td className="px-5 py-4"><span className="rounded-full bg-stone-100 px-2.5 py-1 text-xs capitalize">{l.status}</span></td><td className="px-5 py-4">{l.next_follow_up || "—"}</td><td className="px-5 py-4">{l.assigned_profile?.full_name || "Unassigned"}</td></tr>) : <tr><td colSpan={6} className="p-10 text-center text-stone-500">No leads found. Create your first lead.</td></tr>}</tbody></table></div></div>
+  </div>;
+}
